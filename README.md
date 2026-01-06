@@ -14,14 +14,6 @@ Sau khi tải xong:
 3. Click **"Load unpacked"** → chọn thư mục `Shopee-Affiliate-Smart-Link-main` đã giải nén.
 4. Extension sẽ xuất hiện và sẵn sàng sử dụng!
 
-### Cách 2: Tải từ GitHub
-
-1. Truy cập: [`https://github.com/diepvantien/Shopee-Affiliate-Smart-Link`](https://github.com/diepvantien/Shopee-Affiliate-Smart-Link)
-2. Click nút **"Code"** (màu xanh) → chọn **"Download ZIP"** để tải toàn bộ repo dưới dạng file ZIP.
-3. Làm theo các bước từ bước 1 của Cách 1 ở trên.
-
----
-
 ## Tính năng chính
 
 - **Convert link Shopee → link Affiliate**
