@@ -49,13 +49,6 @@ Sau khi tải xong:
   - Lưu tối đa 10 lượt convert gần nhất (input rút gọn, output rút gọn, full input/output, số link).
   - Click 1 item trong lịch sử để load lại input/output.
   - Xoá từng bản ghi hoặc xoá toàn bộ lịch sử.
-
-- **Donate & liên hệ**
-  - Header hiển thị:
-    - `Develop by Diệp Văn Tiến` (link GitHub).
-    - `Nhận code tools theo yêu cầu liên hệ fb Diệp Văn Tiến` (link Facebook).
-    - `Donate: Momo · buymeacoffee · QR` (QR mở modal hiển thị ảnh `QR.png`).
-
 ---
 
 ## Hướng dẫn sử dụng
