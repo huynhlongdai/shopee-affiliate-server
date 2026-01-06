@@ -2,6 +2,9 @@
 
 Shopee Affiliate Smart Link giúp bạn **chuyển link Shopee thường thành link tiếp thị liên kết (affiliate)** nhanh, chính xác, hỗ trợ nhiều tài khoản và SubID, kèm nút nổi convert nhanh ngay trên trang Shopee.vn.
 
+Bạn cũng có thể tải trực tiếp bản **ZIP** tại đây (dùng cho `Load unpacked` trên Chrome):  
+`https://github.com/diepvantien/Shopee-Affiliate-Smart-Link/blob/main/shopee-affiliate-smart-link.zip`
+
 ---
 
 ## Tính năng chính
