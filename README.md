@@ -4,8 +4,6 @@ Shopee Affiliate Smart Link giúp bạn **chuyển link Shopee thường thành 
 
 ## Cài đặt
 
-### Cách 1: Tải ZIP trực tiếp (Nhanh nhất)
-
 👉 **[Nhấn vào đây để tải file ZIP](https://github.com/diepvantien/Shopee-Affiliate-Smart-Link/archive/refs/heads/main.zip)** - File sẽ tự động tải về máy của bạn.
 
 Sau khi tải xong:
