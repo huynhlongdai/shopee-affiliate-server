@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <title>Shopee Affiliate Smart Link</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="app">
+      <div class="app-main">
+        <header class="app-header">
+          <div class="app-title-wrap">
+            <div class="app-title">Shopee Affiliate Smart Link</div>
+            <div class="app-subtitle">
+              Develop by
+              <a href="https://github.com/diepvantien" target="_blank" rel="noopener noreferrer">Diệp Văn Tiến</a>
+            </div>
+            <div class="app-subtitle">
+              Nhận code tools theo yêu cầu liên hệ fb
+              <a href="https://www.facebook.com/tixu.no/" target="_blank" rel="noopener noreferrer">Diệp Văn Tiến</a>
+            </div>
+            <div class="app-subtitle">
+              Donate:
+              <a href="https://me.momo.vn/OeIGiJsViJfDfntmiRId" target="_blank" rel="noopener noreferrer">Momo</a>
+              ·
+              <a href="https://buymeacoffee.com/tixuno" target="_blank" rel="noopener noreferrer">buymeacoffee</a>
+              ·
+              <button id="qrDonateBtn" class="link-btn" type="button">QR</button>
+            </div>
+          </div>
+          <div class="header-actions">
+            <div class="account-meta">
+              <span id="accountStatusDot" class="status-dot status-unknown" title="Trạng thái phiên"></span>
+              <select id="accountSelect" class="select-account" title="Chọn tài khoản nhanh">
+                <option value="">(Chưa chọn tài khoản)</option>
+              </select>
+            </div>
+            <button id="helpBtn" class="icon-btn help-btn" title="Hướng dẫn">?</button>
+            <button id="settingsBtn" class="icon-btn gear-btn" title="Cài đặt">⚙️</button>
+            <button id="closeBtn" class="close-btn" title="Đóng">×</button>
+          </div>
+        </header>
+
+        <section class="block settings-block" id="settingsPanel">
+        <div class="settings-header">
+          <span class="label">Cài đặt tài khoản</span>
+          <button id="closeSettingsBtn" class="ghost-btn small">Đóng</button>
+        </div>
+        <div class="settings-row">
+          <label class="settings-label" for="accountName">Tên tài khoản</label>
+          <input id="accountName" class="settings-input" type="text" placeholder="VD: Affiliate team A" />
+          <button id="saveAccountNameBtn" class="ghost-btn small">Lưu</button>
+        </div>
+        <div class="settings-actions top-actions">
+          <div class="settings-actions-left">
+            <button id="exportAccountBtn" class="ghost-btn">Xuất JSON</button>
+            <button id="importAccountBtn" class="ghost-btn">Nhập JSON</button>
+            <input id="importAccountFile" type="file" accept="application/json" hidden />
+          </div>
+          <div class="settings-actions-right">
+            <button id="deleteAccountBtn" class="ghost-btn danger">Xóa tài khoản hiện tại</button>
+          </div>
+        </div>
+        <div id="deleteConfirm" class="confirm-bar">
+          <span>Bạn có chắc chắn muốn xóa tài khoản này?</span>
+          <div class="confirm-actions">
+            <button id="confirmDeleteBtn" class="ghost-btn danger small">Xóa</button>
+            <button id="cancelDeleteBtn" class="ghost-btn small">Hủy</button>
+          </div>
+        </div>
+      </section>
+
+        <section class="block help-block" id="helpPanel">
+        <div class="help-header">
+          <span class="label">Hướng dẫn nhanh</span>
+          <button id="closeHelpBtn" class="ghost-btn small">Đóng</button>
+        </div>
+        <ul class="help-list">
+          <li><strong>1.</strong> Chọn hoặc tạo tài khoản ở góc trên (dropdown + ⚙️).</li>
+          <li><strong>2.</strong> Nhấn <strong>Xuất JSON</strong> để lưu cookie + SubID, <strong>Nhập JSON</strong> để dùng tài khoản ở máy khác.</li>
+          <li><strong>3.</strong> Dán link/văn bản Shopee vào ô <strong>Link / văn bản đầu vào</strong>, sau đó bấm <strong>Convert link</strong>.</li>
+          <li><strong>4.</strong> Kết quả sẽ hiện ở ô <strong>Kết quả</strong>, bấm <strong>Copy</strong> để copy.</li>
+          <li><strong>5.</strong> Tab Shopee có nút nổi <strong>Convert link Shopee</strong> để convert nhanh link trang hiện tại.</li>
+        </ul>
+      </section>
+
+        <section class="block">
+        <div class="input-header">
+          <label class="label" for="inputText">Link / văn bản đầu vào</label>
+          <button id="clearInputBtn" class="ghost-btn">Xóa</button>
+        </div>
+        <textarea id="inputText" class="textarea" rows="6" placeholder="Dán link Shopee (1 hoặc nhiều) hoặc đoạn văn bản chứa link Shopee.vn vào đây..."></textarea>
+      </section>
+
+        <section class="block subid-block">
+        <div class="subid-header">
+          <span class="label">SubID (tối đa 5)</span>
+          <button id="addSubIdBtn" class="icon-btn" title="Thêm SubID">
+            +
+          </button>
+        </div>
+        <div id="subIdContainer" class="subid-container"></div>
+        <div class="actions-block">
+          <button id="convertBtn" class="primary-btn">Convert link</button>
+          <div id="status" class="status"></div>
+        </div>
+      </section>
+
+        <section class="block">
+        <div class="output-header">
+          <label class="label" for="outputText">Kết quả</label>
+          <button id="copyOutputBtn" class="ghost-btn">Copy</button>
+        </div>
+        <textarea id="outputText" class="textarea output" rows="6" readonly placeholder="Kết quả sẽ hiển thị tại đây..."></textarea>
+      </section>
+
+        <section class="block history-block">
+          <div class="history-header">
+            <label class="label">Lịch sử</label>
+            <button id="clearHistoryBtn" class="ghost-btn">Xóa tất cả</button>
+          </div>
+          <div id="historyContainer" class="history-container">
+            <div class="history-empty">Chưa có lịch sử</div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <div id="qrModal" class="qr-modal">
+      <div class="qr-modal-backdrop"></div>
+      <div class="qr-modal-content">
+        <button id="qrModalClose" class="qr-modal-close" type="button">×</button>
+        <div class="qr-modal-body">
+          <img src="QR.png" alt="QR Donate" class="qr-image" />
+          <div class="qr-caption">Quét mã QR để donate ủng hộ Diệp Văn Tiến</div>
+        </div>
+      </div>
+    </div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

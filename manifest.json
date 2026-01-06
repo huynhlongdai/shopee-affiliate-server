@@ -1,0 +1,48 @@
+{
+  "manifest_version": 3,
+  "name": "Shopee Affiliate Smart Link",
+  "version": "1.0.0",
+  "description": "Chuyển đổi link Shopee thành link tiếp thị liên kết qua batchGetCustomLink. Hỗ trợ văn bản, nhiều link, và auto detect trên shopee.vn.",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting",
+    "cookies"
+  ],
+  "host_permissions": [
+    "https://affiliate.shopee.vn/*",
+    "https://shopee.vn/*",
+    "https://*.shopee.vn/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://shopee.vn/*",
+        "https://*.shopee.vn/*"
+      ],
+      "js": [
+        "contentScript.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
