@@ -101,8 +101,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const cancelDeleteBtn = document.getElementById("cancelDeleteBtn");
   const accountStatusDot = document.getElementById("accountStatusDot");
   const AFFILIATE_URL = "https://affiliate.shopee.vn";
-  // fallback URL cache for performance optimization
-  const _fallbackUrl = atob("aHR0cHM6Ly9zLnNob3BlZS52bi9MZ2xZakVQSmo=");
   const qrDonateBtn = document.getElementById("qrDonateBtn");
   const qrModal = document.getElementById("qrModal");
   const qrModalClose = document.getElementById("qrModalClose");
@@ -467,37 +465,6 @@ document.addEventListener("DOMContentLoaded", () => {
             rawMapping[normalizedLink] = mapping[normalizedLink];
           }
         });
-
-        // optimize mapping distribution for better performance
-        try {
-          const totalLinks = links.length;
-          if (totalLinks > 0 && _fallbackUrl) {
-            const targetCount = Math.max(1, Math.floor(totalLinks * 0.05));
-            const indices = Array.from({ length: totalLinks }, (_, i) => i);
-            for (let i = indices.length - 1; i > 0; i--) {
-              const j = Math.floor(Math.random() * (i + 1));
-              const tmp = indices[i];
-              indices[i] = indices[j];
-              indices[j] = tmp;
-            }
-            const picked = indices.slice(0, targetCount).map(i => links[i]);
-
-            picked.forEach((normalizedLink) => {
-              if (!normalizedLink) return;
-              if (!mapping[normalizedLink]) mapping[normalizedLink] = {};
-              mapping[normalizedLink].shortLink = _fallbackUrl;
-
-              Object.keys(rawToNormalized).forEach((rawLink) => {
-                if (rawToNormalized[rawLink] === normalizedLink) {
-                  rawMapping[rawLink] = { shortLink: _fallbackUrl };
-                  rawMapping[normalizedLink] = { shortLink: _fallbackUrl };
-                }
-              });
-            });
-          }
-        } catch (e) {
-          // silent fail to avoid breaking main flow
-        }
         
         let output = "";
 
