@@ -234,8 +234,16 @@ async function convertWithPlaywright(links, subIds, cookieString) {
       // Load affiliate page so anti-bot JS computes tokens
       await page.goto('https://affiliate.shopee.vn/dashboard', {
         waitUntil: 'domcontentloaded',
-        timeout: 20000
+        timeout: 30000
       });
+
+      // Check if redirected to login (cookie invalid/expired)
+      const currentUrl = page.url();
+      console.log('[Playwright] Page URL after goto:', currentUrl);
+      if (currentUrl.includes('/login') || currentUrl.includes('accounts.shopee')) {
+        throw new Error('Cookie hết hạn hoặc không hợp lệ — bị redirect sang trang đăng nhập Shopee.');
+      }
+
       // Wait for SDK to initialise
       await page.waitForTimeout(3000);
 
@@ -245,6 +253,13 @@ async function convertWithPlaywright(links, subIds, cookieString) {
           .map(s => (s || '').trim())
           .filter(Boolean)
           .slice(0, 5);
+
+        // Extract csrftoken from cookie (required by Shopee API)
+        const csrfToken = document.cookie
+          .split(';')
+          .map(c => c.trim())
+          .find(c => c.startsWith('csrftoken='))
+          ?.split('=')[1] || '';
 
         const query = `query batchGetCustomLink($linkParams: [CustomLinkParam!], $sourceCaller: SourceCaller){
           batchCustomLink(linkParams: $linkParams, sourceCaller: $sourceCaller){
@@ -272,7 +287,11 @@ async function convertWithPlaywright(links, subIds, cookieString) {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Accept': 'application/json'
+            'Accept': 'application/json',
+            'x-csrftoken': csrfToken,
+            'x-shopee-language': 'vi',
+            'x-affiliate-source-type': '1',
+            'Referer': 'https://affiliate.shopee.vn/dashboard'
           },
           credentials: 'include',
           body: JSON.stringify(body)
