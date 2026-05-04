@@ -1,3 +1,4 @@
+import { chromium } from 'playwright';
 import express from 'express';
 import cors from 'cors';
 import { fileURLToPath } from 'url';
@@ -55,7 +56,43 @@ function authenticateToken(req, res, next) {
   });
 }
 
-/* ── Direct HTTP convert (no browser needed) ── */
+/* ── Playwright headless browser ── */
+
+let browser = null;
+let browserReady = false;
+
+async function initBrowser() {
+  if (browser) return;
+  console.log('[Playwright] Đang khởi động headless Chromium...');
+  try {
+    browser = await chromium.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+    });
+    browserReady = true;
+    console.log('[Playwright] Browser sẵn sàng.');
+  } catch (err) {
+    console.error('[Playwright] Khởi động thất bại:', err.message);
+    browserReady = false;
+  }
+}
+
+function parseCookieString(cookieStr, url) {
+  const hostname = new URL(url).hostname;
+  return cookieStr
+    .split(';')
+    .map(p => p.trim())
+    .filter(Boolean)
+    .map(p => {
+      const eq = p.indexOf('=');
+      if (eq === -1) return null;
+      const name = p.substring(0, eq).trim();
+      const value = p.substring(eq + 1).trim();
+      if (!name) return null;
+      return { name, value, domain: hostname, path: '/', httpOnly: false, secure: true, sameSite: 'Lax' };
+    })
+    .filter(Boolean);
+}
 
 /* ── Product Info + Commission via external API ── */
 
@@ -100,7 +137,15 @@ async function fetchProductInfoParallel(links) {
   return map;
 }
 
-async function convertWithFetch(links, subIds, cookieString) {
+async function convertWithPlaywright(links, subIds, cookieString) {
+  if (!browserReady || !browser) {
+    console.log('[Playwright] Browser chưa sẵn sàng, thử khởi động lại...');
+    await initBrowser();
+    if (!browserReady || !browser) {
+      throw new Error('Browser khởi động thất bại. Kiểm tra log server.');
+    }
+  }
+
   const csrfToken = extractCsrfToken(cookieString);
 
   const cleanedSubIds = (subIds || [])
@@ -124,65 +169,75 @@ async function convertWithFetch(links, subIds, cookieString) {
     return { originalLink: link, advancedLinkParams };
   });
 
-  const body = {
+  const gqlBody = JSON.stringify({
     operationName: 'batchGetCustomLink',
     query,
     variables: { linkParams, sourceCaller: 'CUSTOM_LINK_CALLER' }
-  };
-
-  console.log(`[Convert] Gọi Shopee GQL API trực tiếp (${links.length} link)...`);
-  const resp = await fetch(GQL_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'Accept-Language': 'vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7',
-      'Cookie': cookieString,
-      'x-csrftoken': csrfToken,
-      'x-shopee-language': 'vi',
-      'x-affiliate-source-type': '1',
-      'Referer': 'https://affiliate.shopee.vn/dashboard',
-      'Origin': 'https://affiliate.shopee.vn',
-      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-      'sec-ch-ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
-      'sec-ch-ua-mobile': '?0',
-      'sec-ch-ua-platform': '"macOS"',
-      'sec-fetch-dest': 'empty',
-      'sec-fetch-mode': 'cors',
-      'sec-fetch-site': 'same-origin'
-    },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(15000)
   });
 
-  const json = await resp.json().catch(async () => {
-    const text = await resp.text().catch(() => '');
-    throw new Error(`HTTP ${resp.status}: ${text.substring(0, 300)}`);
+  const context = await browser.newContext({
+    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
   });
 
-  if (json && json.error) {
-    const detail = json.error === 90309999
-      ? 'Shopee từ chối yêu cầu (90309999). Cookie có thể hết hạn hoặc tài khoản chưa kích hoạt Affiliate Custom Link.'
-      : `Shopee error ${json.error} (action_type=${json.action_type})`;
-    throw new Error(detail);
-  }
+  try {
+    const cookies = parseCookieString(cookieString, 'https://affiliate.shopee.vn');
+    if (cookies.length) await context.addCookies(cookies);
 
-  if (!resp.ok) {
-    throw new Error(`HTTP ${resp.status}: Shopee trả về lỗi không xác định.`);
-  }
-
-  const list = ((json.data || {}).batchCustomLink) || [];
-  const mapping = {};
-  links.forEach((link, idx) => {
-    const item = list[idx];
-    if (item && item.failCode === 0 && item.shortLink) {
-      mapping[link] = { shortLink: item.shortLink, longLink: item.longLink, failCode: 0 };
-    } else {
-      mapping[link] = { error: true, failCode: item ? item.failCode : -1 };
+    // Navigate to affiliate dashboard to establish session & let Shopee set session cookies
+    const page = await context.newPage();
+    try {
+      await page.goto('https://affiliate.shopee.vn/dashboard', {
+        waitUntil: 'domcontentloaded',
+        timeout: 30000
+      });
+      const currentUrl = page.url();
+      console.log('[Playwright] URL sau goto:', currentUrl);
+      if (currentUrl.includes('/login') || currentUrl.includes('accounts.shopee')) {
+        throw new Error('Cookie hết hạn hoặc không hợp lệ — bị redirect sang trang đăng nhập Shopee.');
+      }
+      await page.waitForTimeout(2000);
+    } finally {
+      await page.close();
     }
-  });
 
-  return mapping;
+    // Use context.request (Chrome TLS fingerprint, context cookies, no page needed)
+    console.log(`[Playwright] Gọi Shopee GQL qua context.request (${links.length} link)...`);
+    const resp = await context.request.post(GQL_ENDPOINT, {
+      headers: {
+        'Content-Type': 'application/json',
+        'x-csrftoken': csrfToken,
+        'x-shopee-language': 'vi',
+        'x-affiliate-source-type': '1',
+        'Referer': 'https://affiliate.shopee.vn/dashboard',
+        'Origin': 'https://affiliate.shopee.vn'
+      },
+      data: gqlBody
+    });
+
+    const json = await resp.json();
+
+    if (json && json.error) {
+      throw new Error(`Shopee error ${json.error} (action_type=${json.action_type})`);
+    }
+    if (!resp.ok()) {
+      throw new Error(`HTTP ${resp.status()}: Shopee trả về lỗi không xác định.`);
+    }
+
+    const list = ((json.data || {}).batchCustomLink) || [];
+    const mapping = {};
+    links.forEach((link, idx) => {
+      const item = list[idx];
+      if (item && item.failCode === 0 && item.shortLink) {
+        mapping[link] = { shortLink: item.shortLink, longLink: item.longLink, failCode: 0 };
+      } else {
+        mapping[link] = { error: true, failCode: item ? item.failCode : -1 };
+      }
+    });
+
+    return mapping;
+  } finally {
+    await context.close();
+  }
 }
 
 // In-memory store for cookie synced from the Chrome extension
@@ -386,12 +441,12 @@ app.post('/api/convert', authenticateToken, async (req, res) => {
 
     let mapping;
     try {
-      mapping = await convertWithFetch(uniqueLinks, subIds, cookie.trim());
-    } catch (fetchErr) {
-      console.error('[Convert] Failed:', fetchErr.message);
+      mapping = await convertWithPlaywright(uniqueLinks, subIds, cookie.trim());
+    } catch (pwErr) {
+      console.error('[Convert] Failed:', pwErr.message);
       return res.status(502).json({
         ok: false,
-        error: fetchErr.message || String(fetchErr)
+        error: pwErr.message || String(pwErr)
       });
     }
 
@@ -411,10 +466,11 @@ app.post('/api/convert', authenticateToken, async (req, res) => {
 });
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, timestamp: new Date().toISOString() });
+  res.json({ ok: true, browserReady, timestamp: new Date().toISOString() });
 });
 
 app.listen(PORT, async () => {
   console.log(`\n🚀 Shopee Affiliate Server đang chạy tại: http://localhost:${PORT}\n`);
   await initDefaultUser();
+  initBrowser();
 });
