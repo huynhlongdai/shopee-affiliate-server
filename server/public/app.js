@@ -693,13 +693,9 @@ convertBtn.addEventListener('click', async () => {
     setStatus('Đang gửi tới Shopee Affiliate...', false);
 
     let response, usedExtension = false;
-    if (extensionDetected) {
+    if (detectedExtensionId) {
       try {
-        response = await chrome.runtime.sendMessage(extensionId, {
-          type: 'CONVERT_LINKS',
-          links: links,
-          subIds: subIds
-        });
+        response = await convertViaExtension(links, subIds);
         if (response && response.ok) {
           usedExtension = true;
         } else {
