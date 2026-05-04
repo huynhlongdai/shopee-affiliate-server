@@ -668,7 +668,7 @@ function renderProductInfo(mapping, links) {
           ${ratingStr  ? `<span class="product-rating">${ratingStr}</span>` : ''}
           ${salesStr   ? `<span class="product-sales">${salesStr}</span>` : ''}
         </div>
-        ${commissionStr ? `<div class="product-commission">💰 Hoa hồng: <strong>${commissionStr}</strong>${p.commissionRate ? ` (${escapeHtml(p.commissionRate)})` : ''}</div>` : ''}
+        ${commissionStr ? `<div class="product-commission">💰 HH ước tính: <strong>${commissionStr}</strong>${p.commissionRate ? ` (${escapeHtml(p.commissionRate)})` : ''}${p.isXtra ? ' · Xtra' : ''}</div>` : ''}
         <a href="${escapeHtml(data.shortLink)}" class="product-link" target="_blank" rel="noopener">🔗 ${escapeHtml(data.shortLink)}</a>
       </div>
     `;
