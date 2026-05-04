@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>API Docs - Shopee Affiliate Server</title>
   <link rel="stylesheet" href="style.css">
+  <!-- REWRITTEN -->
   <style>
     .docs-wrap { max-width: 860px; margin: 0 auto; padding: 32px 16px 64px; }
     .docs-title { font-size: 28px; font-weight: 700; color: var(--primary); margin-bottom: 8px; }
@@ -44,208 +45,318 @@
 <div class="docs-wrap">
   <a class="back-link" href="/">← Quay lại ứng dụng</a>
   <h1 class="docs-title">📡 API Documentation</h1>
-  <p class="docs-sub">Shopee Affiliate Smart Link Server — dùng cho bot, n8n workflow, automation</p>
+  <p class="docs-sub">Shopee Affiliate Smart Link Server — tích hợp bot, n8n workflow, automation</p>
 
   <div class="base-url-box">
     🌐 <strong>Base URL:</strong> <code id="baseUrlDisplay"></code>
   </div>
 
   <div class="auth-box">
-    🔑 <strong>Xác thực:</strong> Các endpoint có nhãn <span class="tag-auth">Auth</span> yêu cầu header:<br>
-    <code>Authorization: Bearer &lt;token&gt;</code><br><br>
-    Lấy token bằng cách gọi <strong>POST /api/auth/login</strong> trước.
+    🔑 <strong>Xác thực:</strong> Các endpoint có nhãn <span class="tag-auth">Auth</span> yêu cầu header:<br><br>
+    <code>Authorization: Bearer &lt;JWT_TOKEN&gt;</code><br><br>
+    Lấy token bằng cách gọi <strong>POST /api/auth/login</strong>. Token có hiệu lực <strong>7 ngày</strong>.
   </div>
 
-  <!-- AUTH -->
+  <!-- ══════════════ AUTH ══════════════ -->
   <div class="section">
-    <div class="section-title">🔐 Xác thực</div>
+    <div class="section-title">🔐 Xác thực (Auth)</div>
 
+    <!-- LOGIN -->
     <div class="endpoint">
       <div class="endpoint-header" onclick="toggle(this)">
         <span class="method post">POST</span>
         <span class="endpoint-path">/api/auth/login</span>
-        <span class="endpoint-desc">Đăng nhập, lấy JWT token</span>
+        <span class="endpoint-desc">Đăng nhập — lấy JWT token</span>
       </div>
-      <div class="endpoint-body">
+      <div class="endpoint-body open">
         <div class="label">Request Body (JSON)</div>
         <table class="param-table">
-          <tr><th>Tham số</th><th>Loại</th><th>Bắt buộc</th><th>Mô tả</th></tr>
+          <tr><th>Tham số</th><th>Loại</th><th></th><th>Mô tả</th></tr>
           <tr><td><code>password</code></td><td>string</td><td><span class="tag-req">Required</span></td><td>Mật khẩu đăng nhập</td></tr>
         </table>
-        <div class="label">Ví dụ Request</div>
+        <div class="label">Ví dụ</div>
         <pre class="code">curl -X POST '${BASE}/api/auth/login' \
   -H 'Content-Type: application/json' \
   -d '{"password":"your-password"}'</pre>
-        <div class="label">Response thành công</div>
+        <div class="label">Response — không bật 2FA</div>
         <pre class="code">{
   "ok": true,
-  "token": "eyJhbGci...",
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "mfaRequired": false
 }</pre>
-        <div class="label">Response nếu 2FA bật</div>
+        <div class="label">Response — đã bật 2FA</div>
         <pre class="code">{
   "ok": true,
   "mfaRequired": true,
-  "tempToken": "eyJhbGci..."
+  "tempToken": "eyJhbGci..."   // dùng để verify-mfa, hết hạn sau 5 phút
 }</pre>
-        <button class="try-btn" onclick="tryLogin(this)">▶ Thử ngay</button>
+        <button class="try-btn" onclick="tryLogin(this)">▶ Kiểm tra token hiện tại</button>
         <div class="try-result"></div>
       </div>
     </div>
 
+    <!-- VERIFY MFA -->
     <div class="endpoint">
       <div class="endpoint-header" onclick="toggle(this)">
         <span class="method post">POST</span>
         <span class="endpoint-path">/api/auth/verify-mfa</span>
-        <span class="endpoint-desc">Xác thực mã 2FA, lấy JWT cuối</span>
+        <span class="endpoint-desc">Xác thực mã 2FA → lấy JWT cuối</span>
       </div>
       <div class="endpoint-body">
         <div class="label">Request Body (JSON)</div>
         <table class="param-table">
-          <tr><th>Tham số</th><th>Loại</th><th>Bắt buộc</th><th>Mô tả</th></tr>
-          <tr><td><code>tempToken</code></td><td>string</td><td><span class="tag-req">Required</span></td><td>Token tạm từ login</td></tr>
-          <tr><td><code>code</code></td><td>string</td><td><span class="tag-req">Required</span></td><td>Mã 6 chữ số từ app 2FA</td></tr>
+          <tr><th>Tham số</th><th>Loại</th><th></th><th>Mô tả</th></tr>
+          <tr><td><code>tempToken</code></td><td>string</td><td><span class="tag-req">Required</span></td><td>Token tạm nhận từ /login (hết hạn 5 phút)</td></tr>
+          <tr><td><code>code</code></td><td>string</td><td><span class="tag-req">Required</span></td><td>Mã 6 chữ số từ Google Authenticator / Authy</td></tr>
         </table>
-        <div class="label">Ví dụ Request</div>
+        <div class="label">Ví dụ</div>
         <pre class="code">curl -X POST '${BASE}/api/auth/verify-mfa' \
   -H 'Content-Type: application/json' \
   -d '{"tempToken":"eyJ...","code":"123456"}'</pre>
+        <div class="label">Response</div>
+        <pre class="code">{ "ok": true, "token": "eyJhbGci..." }</pre>
+      </div>
+    </div>
+
+    <!-- 2FA SETUP -->
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method get">GET</span>
+        <span class="endpoint-path">/api/auth/2fa/setup</span>
+        <span class="endpoint-desc"><span class="tag-auth">Auth</span> &nbsp;Lấy QR code để cài 2FA</span>
+      </div>
+      <div class="endpoint-body">
+        <p style="color:var(--muted);font-size:13px;">Chỉ gọi được khi 2FA <strong>chưa bật</strong>.</p>
+        <div class="label">Ví dụ</div>
+        <pre class="code">curl '${BASE}/api/auth/2fa/setup' \
+  -H 'Authorization: Bearer &lt;TOKEN&gt;'</pre>
+        <div class="label">Response</div>
+        <pre class="code">{
+  "ok": true,
+  "secret": "BASE32SECRET...",   // lưu lại để enable
+  "qrCode": "data:image/png;base64,..."
+}</pre>
+      </div>
+    </div>
+
+    <!-- 2FA ENABLE -->
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method post">POST</span>
+        <span class="endpoint-path">/api/auth/2fa/enable</span>
+        <span class="endpoint-desc"><span class="tag-auth">Auth</span> &nbsp;Bật 2FA</span>
+      </div>
+      <div class="endpoint-body">
+        <div class="label">Request Body (JSON)</div>
+        <table class="param-table">
+          <tr><th>Tham số</th><th>Loại</th><th></th><th>Mô tả</th></tr>
+          <tr><td><code>secret</code></td><td>string</td><td><span class="tag-req">Required</span></td><td>Base32 secret nhận từ /2fa/setup</td></tr>
+          <tr><td><code>code</code></td><td>string</td><td><span class="tag-req">Required</span></td><td>Mã 6 digits xác nhận</td></tr>
+        </table>
+        <div class="label">Ví dụ</div>
+        <pre class="code">curl -X POST '${BASE}/api/auth/2fa/enable' \
+  -H 'Authorization: Bearer &lt;TOKEN&gt;' \
+  -H 'Content-Type: application/json' \
+  -d '{"secret":"BASE32...","code":"123456"}'</pre>
+        <div class="label">Response</div>
+        <pre class="code">{ "ok": true, "message": "2FA enabled" }</pre>
+      </div>
+    </div>
+
+    <!-- 2FA DISABLE -->
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method post">POST</span>
+        <span class="endpoint-path">/api/auth/2fa/disable</span>
+        <span class="endpoint-desc"><span class="tag-auth">Auth</span> &nbsp;Tắt 2FA</span>
+      </div>
+      <div class="endpoint-body">
+        <div class="label">Request Body (JSON)</div>
+        <table class="param-table">
+          <tr><th>Tham số</th><th>Loại</th><th></th><th>Mô tả</th></tr>
+          <tr><td><code>code</code></td><td>string</td><td><span class="tag-req">Required</span></td><td>Mã 2FA hiện tại để xác nhận</td></tr>
+        </table>
+        <div class="label">Ví dụ</div>
+        <pre class="code">curl -X POST '${BASE}/api/auth/2fa/disable' \
+  -H 'Authorization: Bearer &lt;TOKEN&gt;' \
+  -H 'Content-Type: application/json' \
+  -d '{"code":"123456"}'</pre>
+        <div class="label">Response</div>
+        <pre class="code">{ "ok": true, "message": "2FA disabled" }</pre>
       </div>
     </div>
   </div>
 
-  <!-- COOKIE SYNC -->
+  <!-- ══════════════ COOKIE SYNC ══════════════ -->
   <div class="section">
     <div class="section-title">🍪 Đồng bộ Cookie</div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:16px;">
+      Cookie Shopee Affiliate được lưu trên server RAM. Server tự dùng cookie này khi convert nếu client không gửi cookie.
+      Extension Chrome tự động sync, hoặc có thể sync thủ công qua 2 endpoint dưới đây.
+    </p>
 
+    <!-- POST sync-cookie -->
     <div class="endpoint">
       <div class="endpoint-header" onclick="toggle(this)">
         <span class="method post">POST</span>
         <span class="endpoint-path">/api/sync-cookie</span>
-        <span class="endpoint-desc">Extension gửi cookie lên server</span>
+        <span class="endpoint-desc">Extension gửi cookie lên server (không cần auth)</span>
       </div>
       <div class="endpoint-body">
         <div class="label">Request Body (JSON)</div>
         <table class="param-table">
-          <tr><th>Tham số</th><th>Loại</th><th>Bắt buộc</th><th>Mô tả</th></tr>
-          <tr><td><code>cookie</code></td><td>string</td><td><span class="tag-req">Required</span></td><td>Chuỗi cookie Shopee Affiliate</td></tr>
+          <tr><th>Tham số</th><th>Loại</th><th></th><th>Mô tả</th></tr>
+          <tr><td><code>cookie</code></td><td>string</td><td><span class="tag-req">Required</span></td><td>Chuỗi cookie đầy đủ (SPC_EC, SPC_F, SPC_ST, SPC_U, csrftoken...)</td></tr>
           <tr><td><code>accountName</code></td><td>string</td><td><span class="tag-opt">Optional</span></td><td>Tên tài khoản để nhận biết</td></tr>
         </table>
         <div class="label">Ví dụ</div>
         <pre class="code">curl -X POST '${BASE}/api/sync-cookie' \
   -H 'Content-Type: application/json' \
-  -d '{"cookie":"SPC_EC=...;SPC_F=...","accountName":"Tài khoản chính"}'</pre>
+  -d '{
+    "cookie": "SPC_EC=abc;SPC_F=xyz;csrftoken=tok",
+    "accountName": "Tài khoản chính"
+  }'</pre>
+        <div class="label">Response</div>
+        <pre class="code">{
+  "ok": true,
+  "accountName": "Tài khoản chính",
+  "syncedAt": "2025-01-01T00:00:00.000Z"
+}</pre>
       </div>
     </div>
 
+    <!-- POST sync-cookie-local -->
     <div class="endpoint">
       <div class="endpoint-header" onclick="toggle(this)">
         <span class="method post">POST</span>
         <span class="endpoint-path">/api/sync-cookie-local</span>
-        <span class="endpoint-desc">Sync cookie nhanh từ local</span>
+        <span class="endpoint-desc">Sync cookie nhanh từ local machine (không cần auth)</span>
       </div>
       <div class="endpoint-body">
-        <p style="color:var(--muted);font-size:13px;">Tương tự <code>/api/sync-cookie</code> — dùng cho đồng bộ thủ công từ máy local.</p>
-        <div class="label">Request Body (JSON)</div>
-        <table class="param-table">
-          <tr><th>Tham số</th><th>Loại</th><th>Bắt buộc</th><th>Mô tả</th></tr>
-          <tr><td><code>cookie</code></td><td>string</td><td><span class="tag-req">Required</span></td><td>Chuỗi cookie</td></tr>
-          <tr><td><code>accountName</code></td><td>string</td><td><span class="tag-opt">Optional</span></td><td>Tên tài khoản</td></tr>
-        </table>
+        <p style="color:var(--muted);font-size:13px;">Giống <code>/api/sync-cookie</code>, dùng cho sync thủ công từ máy tính cá nhân.</p>
+        <div class="label">Ví dụ</div>
+        <pre class="code">curl -X POST '${BASE}/api/sync-cookie-local' \
+  -H 'Content-Type: application/json' \
+  -d '{"cookie":"SPC_EC=...","accountName":"Local"}'</pre>
+        <div class="label">Response</div>
+        <pre class="code">{ "ok": true, "accountName": "Local", "syncedAt": "..." }</pre>
       </div>
     </div>
 
+    <!-- GET sync-cookie -->
     <div class="endpoint">
       <div class="endpoint-header" onclick="toggle(this)">
         <span class="method get">GET</span>
         <span class="endpoint-path">/api/sync-cookie</span>
-        <span class="endpoint-desc">Lấy cookie đang lưu trên server</span>
+        <span class="endpoint-desc">Lấy trạng thái cookie đang lưu trên server</span>
       </div>
       <div class="endpoint-body">
-        <div class="label">Response</div>
+        <div class="label">Response — có cookie</div>
         <pre class="code">{
   "ok": true,
   "cookie": "SPC_EC=...;SPC_F=...",
   "accountName": "Tài khoản chính",
-  "syncedAt": "2025-01-01T00:00:00.000Z"
+  "syncedAt": "2025-01-01T07:00:00.000Z"
 }</pre>
+        <div class="label">Response — chưa có cookie</div>
+        <pre class="code">{ "ok": false, "error": "Chưa có cookie nào được sync." }</pre>
         <button class="try-btn" onclick="tryGet('/api/sync-cookie', this)">▶ Thử ngay</button>
         <div class="try-result"></div>
       </div>
     </div>
   </div>
 
-  <!-- CONVERT -->
+  <!-- ══════════════ CONVERT ══════════════ -->
   <div class="section">
-    <div class="section-title">⚡ Convert Link</div>
+    <div class="section-title">⚡ Convert Link Affiliate</div>
 
     <div class="endpoint">
       <div class="endpoint-header" onclick="toggle(this)">
         <span class="method post">POST</span>
         <span class="endpoint-path">/api/convert</span>
-        <span class="endpoint-desc"><span class="tag-auth">Auth</span> &nbsp;Convert Shopee links thành affiliate links</span>
+        <span class="endpoint-desc"><span class="tag-auth">Auth</span> &nbsp;Convert Shopee links → affiliate links + thông tin sản phẩm</span>
       </div>
-      <div class="endpoint-body">
+      <div class="endpoint-body open">
         <div class="label">Request Body (JSON)</div>
         <table class="param-table">
-          <tr><th>Tham số</th><th>Loại</th><th>Bắt buộc</th><th>Mô tả</th></tr>
-          <tr><td><code>links</code></td><td>string[]</td><td><span class="tag-req">Required</span></td><td>Mảng URL Shopee cần convert</td></tr>
-          <tr><td><code>subIds</code></td><td>string[]</td><td><span class="tag-opt">Optional</span></td><td>Sub-ID để tracking (tối đa 5)</td></tr>
-          <tr><td><code>cookie</code></td><td>string</td><td><span class="tag-opt">Optional</span></td><td>Cookie Shopee. Nếu bỏ trống, server tự dùng cookie đã sync từ extension</td></tr>
+          <tr><th>Tham số</th><th>Loại</th><th></th><th>Mô tả</th></tr>
+          <tr><td><code>links</code></td><td>string[]</td><td><span class="tag-req">Required</span></td><td>Mảng URL Shopee (tối đa 15 link/request)</td></tr>
+          <tr><td><code>subIds</code></td><td>string[]</td><td><span class="tag-opt">Optional</span></td><td>Sub-ID tracking — tối đa 5 giá trị</td></tr>
+          <tr><td><code>cookie</code></td><td>string</td><td><span class="tag-opt">Optional</span></td><td>Cookie Shopee Affiliate. Nếu bỏ trống → server tự dùng cookie đã sync từ extension</td></tr>
         </table>
-        <div class="label">Ví dụ Request (n8n / bot)</div>
+        <div class="label">Ví dụ Request</div>
         <pre class="code">curl -X POST '${BASE}/api/convert' \
   -H 'Content-Type: application/json' \
   -H 'Authorization: Bearer eyJhbGci...' \
   -d '{
     "links": [
-      "https://shopee.vn/product-name-i.123.456",
-      "https://s.shopee.vn/abc123"
+      "https://shopee.vn/product-name-i.123456.987654",
+      "https://s.shopee.vn/AbCdEf"
     ],
-    "subIds": ["n8n", "bot"]
+    "subIds": ["n8n", "campaign1"]
   }'</pre>
-        <div class="label">Response</div>
+        <div class="label">Response đầy đủ</div>
         <pre class="code">{
   "ok": true,
   "mapping": {
-    "https://shopee.vn/product-name-i.123.456": {
-      "shortLink": "https://s.shopee.vn/xxxxx",
+    "https://shopee.vn/product-name-i.123456.987654": {
+      "shortLink": "https://s.shopee.vn/xXxXxX",   // link affiliate của tài khoản bạn
+      "longLink":  "https://affiliate.shopee.vn/...",
+      "failCode":  0,
       "product": {
-        "name": "Tên sản phẩm",
-        "price": "299.000đ",
-        "image": "https://...",
-        "shopName": "Tên shop"
+        "name":              "Tên sản phẩm đầy đủ",
+        "price":             299000,                  // VNĐ (số nguyên)
+        "image":             "https://cf.shopee.vn/file/...",
+        "shopName":          "Tên Shop",
+        "rating":            "4.8",
+        "sales":             1500,                    // số lượng đã bán
+        "commission":        53820,                   // HH ước tính tổng (VNĐ)
+        "commissionRate":    "18.0%",                 // % HH ước tính
+        "sellerCommission":  35880,                   // HH từ seller (VNĐ)
+        "shopeeCommission":  17940,                   // HH từ Shopee (VNĐ)
+        "isXtra":            true,                    // có Xtra commission
+        "cap":               50000,                   // cap HH tối đa (VNĐ)
+        "productLink":       "https://shopee.vn/product/..."
       }
+    },
+    "https://s.shopee.vn/AbCdEf": {
+      "error":    true,
+      "failCode": 10   // link không hợp lệ hoặc hết hạn
     }
   }
 }</pre>
-        <div class="label">Workflow n8n (HTTP Request node)</div>
-        <pre class="code">Method:  POST
-URL:     ${BASE}/api/convert
-Headers: Authorization = Bearer {{$node["Login"].json.token}}
-         Content-Type  = application/json
-Body:    {
-           "links": {{ $json.shopeeLinks }},
-           "subIds": ["n8n"]
-         }</pre>
+        <div class="label">Giải thích failCode</div>
+        <table class="param-table">
+          <tr><th>failCode</th><th>Ý nghĩa</th></tr>
+          <tr><td><code>0</code></td><td>Thành công</td></tr>
+          <tr><td><code>-1</code></td><td>Lỗi không xác định</td></tr>
+          <tr><td><code>10</code></td><td>Link không hợp lệ</td></tr>
+          <tr><td><code>40300</code></td><td>Cookie hết hạn / không có quyền</td></tr>
+        </table>
+        <div class="label">Lưu ý</div>
+        <ul style="font-size:13px;color:var(--muted);margin-left:18px;line-height:2;">
+          <li><strong>shortLink</strong> được tạo bằng cookie tài khoản affiliate của bạn → hoa hồng về tài khoản bạn.</li>
+          <li><strong>commission / commissionRate</strong> là ước tính từ API bên thứ 3 (addlivetag) — tỷ lệ thực nhận phụ thuộc user_rate tài khoản bạn.</li>
+          <li>Nếu không truyền <code>cookie</code>, server tự dùng cookie đã sync từ extension.</li>
+        </ul>
       </div>
     </div>
   </div>
 
-  <!-- HEALTH -->
+  <!-- ══════════════ HEALTH ══════════════ -->
   <div class="section">
     <div class="section-title">🩺 Health Check</div>
     <div class="endpoint">
       <div class="endpoint-header" onclick="toggle(this)">
         <span class="method get">GET</span>
         <span class="endpoint-path">/api/health</span>
-        <span class="endpoint-desc">Kiểm tra trạng thái server</span>
+        <span class="endpoint-desc">Trạng thái server và Playwright browser</span>
       </div>
       <div class="endpoint-body">
         <div class="label">Response</div>
         <pre class="code">{
   "ok": true,
-  "browserReady": true,
+  "browserReady": true,        // false = Playwright chưa khởi động xong
   "timestamp": "2025-01-01T00:00:00.000Z"
 }</pre>
         <button class="try-btn" onclick="tryGet('/api/health', this)">▶ Thử ngay</button>
@@ -254,18 +365,83 @@ Body:    {
     </div>
   </div>
 
-  <!-- N8N GUIDE -->
+  <!-- ══════════════ N8N GUIDE ══════════════ -->
   <div class="section">
-    <div class="section-title">🤖 Hướng dẫn tích hợp n8n</div>
-    <div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:20px;font-size:14px;line-height:1.8;">
-      <strong>Luồng workflow n8n đơn giản:</strong>
-      <ol style="margin:12px 0 0 20px;color:var(--text);">
-        <li><strong>HTTP Request</strong> — POST <code>/api/auth/login</code> → lưu <code>token</code></li>
-        <li><strong>HTTP Request</strong> — POST <code>/api/convert</code> với header <code>Authorization: Bearer {{token}}</code></li>
-        <li><strong>Set node</strong> — lấy <code>mapping[link].shortLink</code> từ response</li>
+    <div class="section-title">🤖 Tích hợp n8n Workflow</div>
+    <div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:20px;font-size:13px;line-height:1.9;">
+
+      <strong style="font-size:14px;">Luồng cơ bản (3 node):</strong>
+      <ol style="margin:10px 0 16px 18px;color:var(--text);">
+        <li><strong>HTTP Request</strong> — <code>POST /api/auth/login</code> → lưu <code>{{ $json.token }}</code></li>
+        <li><strong>HTTP Request</strong> — <code>POST /api/convert</code> với header Auth + body links</li>
+        <li><strong>Code / Set node</strong> — xử lý <code>mapping</code> lấy shortLink và thông tin SP</li>
       </ol>
-      <br>
-      <strong>Lưu ý:</strong> Cookie được tự động lấy từ extension đã sync — không cần truyền cookie trong request.
+
+      <strong style="font-size:14px;">Node 1 — Login:</strong>
+      <pre class="code">Method:  POST
+URL:     ${BASE}/api/auth/login
+Body:    { "password": "your-password" }
+→ Lưu output: token = {{ $json.token }}</pre>
+
+      <strong style="font-size:14px;">Node 2 — Convert:</strong>
+      <pre class="code">Method:  POST
+URL:     ${BASE}/api/convert
+Headers: Authorization = Bearer {{ $('Login').item.json.token }}
+         Content-Type  = application/json
+Body (JSON):
+{
+  "links": {{ JSON.stringify($json.links) }},
+  "subIds": ["n8n"]
+}</pre>
+
+      <strong style="font-size:14px;">Node 3 — Lấy kết quả (Code node):</strong>
+      <pre class="code">const mapping = $input.item.json.mapping;
+const results = [];
+for (const [originalUrl, data] of Object.entries(mapping)) {
+  if (data.shortLink) {
+    results.push({
+      original:       originalUrl,
+      shortLink:      data.shortLink,
+      productName:    data.product?.name,
+      price:          data.product?.price,
+      commission:     data.product?.commission,
+      commissionRate: data.product?.commissionRate,
+    });
+  }
+}
+return results.map(r => ({ json: r }));</pre>
+
+      <strong style="font-size:14px;">Lưu ý quan trọng:</strong>
+      <ul style="margin:8px 0 0 18px;color:var(--muted);">
+        <li>Token hết hạn sau <strong>7 ngày</strong> — cần login lại hoặc dùng Sub-workflow riêng để renew.</li>
+        <li>Không cần truyền <code>cookie</code> nếu đã sync từ extension Chrome trước đó.</li>
+        <li>Rate limit phụ thuộc Shopee Affiliate API — nên batch tối đa 10-15 link/request.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ══════════════ ERROR CODES ══════════════ -->
+  <div class="section">
+    <div class="section-title">❌ Mã lỗi HTTP</div>
+    <div class="endpoint">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method get" style="background:#f5f5f5;color:#555;">INFO</span>
+        <span class="endpoint-path">HTTP Error Codes</span>
+        <span class="endpoint-desc">Các mã lỗi trả về</span>
+      </div>
+      <div class="endpoint-body">
+        <table class="param-table">
+          <tr><th>HTTP Code</th><th>Ý nghĩa</th><th>Xử lý</th></tr>
+          <tr><td><code>400</code></td><td>Request thiếu/sai tham số</td><td>Kiểm tra body request</td></tr>
+          <tr><td><code>401</code></td><td>Sai password hoặc mã 2FA</td><td>Đăng nhập lại</td></tr>
+          <tr><td><code>403</code></td><td>Token không hợp lệ hoặc hết hạn</td><td>Gọi /login lấy token mới</td></tr>
+          <tr><td><code>502</code></td><td>Playwright lỗi (Shopee API thất bại)</td><td>Kiểm tra cookie còn hạn không</td></tr>
+          <tr><td><code>503</code></td><td>Browser chưa sẵn sàng</td><td>Đợi vài giây rồi retry</td></tr>
+          <tr><td><code>500</code></td><td>Lỗi server nội bộ</td><td>Xem log server</td></tr>
+        </table>
+        <div class="label">Response format lỗi</div>
+        <pre class="code">{ "ok": false, "error": "Mô tả lỗi chi tiết" }</pre>
+      </div>
     </div>
   </div>
 </div>
@@ -298,13 +474,10 @@ Body:    {
   async function tryLogin(btn) {
     const result = btn.nextElementSibling;
     result.style.display = 'block';
-    result.textContent = 'Loading...';
     const token = localStorage.getItem('shopeeAffiliateToken');
-    if (token) {
-      result.textContent = JSON.stringify({ ok: true, note: 'Bạn đã đăng nhập. Token đang lưu trong localStorage.' }, null, 2);
-      return;
-    }
-    result.textContent = 'Chưa đăng nhập. Vào /login.html để lấy token.';
+    result.textContent = token
+      ? JSON.stringify({ ok: true, status: 'Đã đăng nhập', note: 'Token lưu trong localStorage' }, null, 2)
+      : '{ "ok": false, "note": "Chưa đăng nhập. Vào /login.html để lấy token." }';
   }
 </script>
 </body>
