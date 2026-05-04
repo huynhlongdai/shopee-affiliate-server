@@ -214,7 +214,11 @@ async function scrapeProductsParallel(urls) {
 
 async function convertWithPlaywright(links, subIds, cookieString) {
   if (!browserReady || !browser) {
-    throw new Error('Browser chưa sẵn sàng. Vui lòng đợi hoặc kiểm tra log server.');
+    console.log('[Playwright] Browser chưa sẵn sàng, thử khởi động lại...');
+    await initBrowser();
+    if (!browserReady || !browser) {
+      throw new Error('Browser khởi động thất bại. Kiểm tra log server.');
+    }
   }
 
   const context = await browser.newContext({
