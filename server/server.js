@@ -82,6 +82,49 @@ async function initBrowser() {
   }
 }
 
+/* ── Product Info + Commission via external API ── */
+
+const PRODUCT_DATA_API = 'https://data.addlivetag.com/product-data/product-data.php';
+
+async function fetchProductInfo(shopeeUrl) {
+  try {
+    const apiUrl = `${PRODUCT_DATA_API}?url=${encodeURIComponent(shopeeUrl)}`;
+    const res = await fetch(apiUrl, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (json.status !== 'success' || !json.productInfo) return null;
+    const p = json.productInfo;
+    const commissionRate = p.price > 0 ? ((p.commission / p.price) * 100).toFixed(1) : null;
+    return {
+      name:              p.productName || null,
+      price:             p.price       || null,
+      image:             p.imageUrl    || null,
+      shopName:          p.shopName    || null,
+      rating:            p.rating      || null,
+      sales:             p.sales       || null,
+      commission:        p.commission  || null,
+      commissionRate:    commissionRate ? `${commissionRate}%` : null,
+      sellerCommission:  p.sellerComFinal || null,
+      shopeeCommission:  p.shopeeComFinal || null,
+      isXtra:            p.isXtra      || false,
+      cap:               p.cap         || null,
+      productLink:       p.productLink || shopeeUrl,
+    };
+  } catch (err) {
+    console.warn(`[ProductAPI] Failed for ${shopeeUrl}:`, err.message);
+    return null;
+  }
+}
+
+async function fetchProductInfoParallel(links) {
+  const results = await Promise.allSettled(links.map(link => fetchProductInfo(link)));
+  const map = {};
+  links.forEach((link, i) => {
+    map[link] = results[i].status === 'fulfilled' ? results[i].value : null;
+  });
+  return map;
+}
+
 function parseCookieString(cookieStr, url) {
   const hostname = new URL(url).hostname;
   return cookieStr
@@ -478,8 +521,8 @@ app.post('/api/convert', authenticateToken, async (req, res) => {
       });
     }
 
-    // ── Scrape product info from original Shopee links ──
-    const productInfos = await scrapeProductsParallel(uniqueLinks);
+    // ── Fetch product info + commission from external API ──
+    const productInfos = await fetchProductInfoParallel(uniqueLinks);
     Object.keys(mapping).forEach(link => {
       if (mapping[link] && !mapping[link].error && productInfos[link]) {
         mapping[link].product = productInfos[link];

@@ -651,12 +651,24 @@ function renderProductInfo(mapping, links) {
       ? new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(p.price)
       : '';
 
+    const commissionStr = p.commission != null
+      ? new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(p.commission)
+      : null;
+    const ratingStr  = p.rating ? `⭐ ${p.rating}` : '';
+    const salesStr   = p.sales  ? `🛒 ${p.sales.toLocaleString('vi-VN')} đã bán` : '';
+    const xtraBadge  = p.isXtra ? `<span class="badge-xtra">Xtra</span>` : '';
+
     card.innerHTML = `
       ${img}
       <div class="product-body">
-        <div class="product-name" title="${escapeHtml(p.name || '')}">${escapeHtml(p.name || 'Sản phẩm Shopee')}</div>
+        <div class="product-name" title="${escapeHtml(p.name || '')}">${escapeHtml(p.name || 'Sản phẩm Shopee')} ${xtraBadge}</div>
         ${p.shopName ? `<div class="product-shop">🏪 ${escapeHtml(p.shopName)}</div>` : ''}
-        ${priceStr ? `<div class="product-price">${priceStr}</div>` : ''}
+        <div class="product-meta-row">
+          ${priceStr   ? `<span class="product-price">${priceStr}</span>` : ''}
+          ${ratingStr  ? `<span class="product-rating">${ratingStr}</span>` : ''}
+          ${salesStr   ? `<span class="product-sales">${salesStr}</span>` : ''}
+        </div>
+        ${commissionStr ? `<div class="product-commission">💰 Hoa hồng: <strong>${commissionStr}</strong>${p.commissionRate ? ` (${escapeHtml(p.commissionRate)})` : ''}</div>` : ''}
         <a href="${escapeHtml(data.shortLink)}" class="product-link" target="_blank" rel="noopener">🔗 ${escapeHtml(data.shortLink)}</a>
       </div>
     `;
