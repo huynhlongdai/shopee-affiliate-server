@@ -2,7 +2,6 @@ import express from 'express';
 import cors from 'cors';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { chromium } from 'playwright';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import speakeasy from 'speakeasy';
@@ -56,31 +55,7 @@ function authenticateToken(req, res, next) {
   });
 }
 
-/* ── Playwright headless browser ── */
-
-let browser = null;
-let browserReady = false;
-
-async function initBrowser() {
-  if (browser) return;
-  console.log('[Playwright] Đang khởi động headless Chromium...');
-  try {
-    browser = await chromium.launch({
-      headless: true,
-      args: [
-        '--disable-blink-features=AutomationControlled',
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage'
-      ]
-    });
-    browserReady = true;
-    console.log('[Playwright] Browser sẵn sàng.');
-  } catch (err) {
-    console.error('[Playwright] Khởi động thất bại:', err.message);
-    browserReady = false;
-  }
-}
+/* ── Direct HTTP convert (no browser needed) ── */
 
 /* ── Product Info + Commission via external API ── */
 
@@ -125,210 +100,77 @@ async function fetchProductInfoParallel(links) {
   return map;
 }
 
-function parseCookieString(cookieStr, url) {
-  const hostname = new URL(url).hostname;
-  return cookieStr
-    .split(';')
-    .map(p => p.trim())
+async function convertWithFetch(links, subIds, cookieString) {
+  const csrfToken = extractCsrfToken(cookieString);
+
+  const cleanedSubIds = (subIds || [])
+    .map(s => (s || '').trim())
     .filter(Boolean)
-    .map(p => {
-      const eq = p.indexOf('=');
-      if (eq === -1) return null;
-      const name = p.substring(0, eq).trim();
-      const value = p.substring(eq + 1).trim();
-      if (!name) return null;
-      return {
-        name,
-        value,
-        domain: hostname,
-        path: '/',
-        httpOnly: false,
-        secure: true,
-        sameSite: 'Lax'
-      };
-    })
-    .filter(Boolean);
-}
+    .slice(0, 5);
 
-/* ── Scrape product info from Shopee product pages ── */
+  const query = `query batchGetCustomLink($linkParams: [CustomLinkParam!], $sourceCaller: SourceCaller){
+    batchCustomLink(linkParams: $linkParams, sourceCaller: $sourceCaller){
+      shortLink
+      longLink
+      failCode
+    }
+  }`;
 
-async function scrapeShopeeProduct(url) {
-  try {
-    const resp = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'vi-VN,vi;q=0.9'
-      },
-      redirect: 'follow'
+  const linkParams = links.map(link => {
+    const advancedLinkParams = {};
+    cleanedSubIds.forEach((value, index) => {
+      advancedLinkParams['subId' + (index + 1)] = value;
     });
-    if (!resp.ok) return null;
-    const html = await resp.text();
-
-    // og:title
-    const nameMatch = html.match(/<meta[^>]*property="og:title"[^>]*content="([^"]*)"/i);
-    const name = nameMatch ? nameMatch[1].trim() : '';
-
-    // og:image
-    const imgMatch = html.match(/<meta[^>]*property="og:image"[^>]*content="([^"]*)"/i);
-    const image = imgMatch ? imgMatch[1].trim() : '';
-
-    // og:price:amount or JSON-LD price
-    let price = null;
-    const priceMatch = html.match(/<meta[^>]*property="og:price:amount"[^>]*content="([^"]*)"/i);
-    if (priceMatch) price = parseFloat(priceMatch[1]);
-
-    // JSON-LD fallback for price
-    if (!price) {
-      const ldMatch = html.match(/<script type="application\/ld\+json">(.*?)<\/script>/is);
-      if (ldMatch) {
-        try {
-          const ld = JSON.parse(ldMatch[1]);
-          if (ld.offers && ld.offers.price) price = parseFloat(ld.offers.price);
-          else if (ld.price) price = parseFloat(ld.price);
-        } catch { /* ignore */ }
-      }
-    }
-
-    // Extract shop name
-    const shopMatch = html.match(/"shopName"\s*:\s*"([^"]+)"/i) || html.match(/"shop_name"\s*:\s*"([^"]+)"/i);
-    const shopName = shopMatch ? shopMatch[1] : '';
-
-    if (!name && !price) return null;
-    return { name, image, price, shopName };
-  } catch (err) {
-    console.warn('[Scrape] Lỗi scrape', url, ':', err.message);
-    return null;
-  }
-}
-
-async function scrapeProductsParallel(urls) {
-  const results = {};
-  const promises = urls.map(async url => {
-    const info = await scrapeShopeeProduct(url);
-    if (info) results[url] = info;
-  });
-  await Promise.all(promises);
-  return results;
-}
-
-async function convertWithPlaywright(links, subIds, cookieString) {
-  if (!browserReady || !browser) {
-    console.log('[Playwright] Browser chưa sẵn sàng, thử khởi động lại...');
-    await initBrowser();
-    if (!browserReady || !browser) {
-      throw new Error('Browser khởi động thất bại. Kiểm tra log server.');
-    }
-  }
-
-  const context = await browser.newContext({
-    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36'
+    return { originalLink: link, advancedLinkParams };
   });
 
-  try {
-    const cookies = parseCookieString(cookieString, 'https://affiliate.shopee.vn');
-    if (cookies.length) await context.addCookies(cookies);
+  const body = {
+    operationName: 'batchGetCustomLink',
+    query,
+    variables: { linkParams, sourceCaller: 'CUSTOM_LINK_CALLER' }
+  };
 
-    const page = await context.newPage();
-    try {
-      // Load affiliate page so anti-bot JS computes tokens
-      await page.goto('https://affiliate.shopee.vn/dashboard', {
-        waitUntil: 'domcontentloaded',
-        timeout: 30000
-      });
+  console.log(`[Convert] Gọi Shopee GQL API trực tiếp (${links.length} link)...`);
+  const resp = await fetch(GQL_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Cookie': cookieString,
+      'x-csrftoken': csrfToken,
+      'x-shopee-language': 'vi',
+      'x-affiliate-source-type': '1',
+      'Referer': 'https://affiliate.shopee.vn/dashboard',
+      'Origin': 'https://affiliate.shopee.vn',
+      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(15000)
+  });
 
-      // Check if redirected to login (cookie invalid/expired)
-      const currentUrl = page.url();
-      console.log('[Playwright] Page URL after goto:', currentUrl);
-      if (currentUrl.includes('/login') || currentUrl.includes('accounts.shopee')) {
-        throw new Error('Cookie hết hạn hoặc không hợp lệ — bị redirect sang trang đăng nhập Shopee.');
-      }
-
-      // Wait for SDK to initialise
-      await page.waitForTimeout(3000);
-
-      // Call Shopee API from inside the real browser context
-      const result = await page.evaluate(async ({ linksArg, subIdsArg }) => {
-        const cleanedSubIds = (subIdsArg || [])
-          .map(s => (s || '').trim())
-          .filter(Boolean)
-          .slice(0, 5);
-
-        // Extract csrftoken from cookie (required by Shopee API)
-        const csrfToken = document.cookie
-          .split(';')
-          .map(c => c.trim())
-          .find(c => c.startsWith('csrftoken='))
-          ?.split('=')[1] || '';
-
-        const query = `query batchGetCustomLink($linkParams: [CustomLinkParam!], $sourceCaller: SourceCaller){
-          batchCustomLink(linkParams: $linkParams, sourceCaller: $sourceCaller){
-            shortLink
-            longLink
-            failCode
-          }
-        }`;
-
-        const linkParams = linksArg.map(link => {
-          const advancedLinkParams = {};
-          cleanedSubIds.forEach((value, index) => {
-            advancedLinkParams['subId' + (index + 1)] = value;
-          });
-          return { originalLink: link, advancedLinkParams };
-        });
-
-        const body = {
-          operationName: 'batchGetCustomLink',
-          query,
-          variables: { linkParams, sourceCaller: 'CUSTOM_LINK_CALLER' }
-        };
-
-        const resp = await fetch('https://affiliate.shopee.vn/api/v3/gql?q=batchCustomLink', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'x-csrftoken': csrfToken,
-            'x-shopee-language': 'vi',
-            'x-affiliate-source-type': '1',
-            'Referer': 'https://affiliate.shopee.vn/dashboard'
-          },
-          credentials: 'include',
-          body: JSON.stringify(body)
-        });
-
-        if (!resp.ok) {
-          const text = await resp.text();
-          throw new Error('HTTP ' + resp.status + ': ' + text.substring(0, 300));
-        }
-
-        const json = await resp.json();
-
-        if (json && json.error) {
-          throw new Error('Shopee error ' + json.error + ' (action_type=' + json.action_type + ')');
-        }
-
-        const list = ((json.data || {}).batchCustomLink) || [];
-        const mapping = {};
-        linksArg.forEach((link, idx) => {
-          const item = list[idx];
-          if (item && item.failCode === 0 && item.shortLink) {
-            mapping[link] = { shortLink: item.shortLink, longLink: item.longLink, failCode: 0 };
-          } else {
-            mapping[link] = { error: true, failCode: item ? item.failCode : -1 };
-          }
-        });
-
-        return mapping;
-      }, { linksArg: links, subIdsArg: subIds });
-
-      return result;
-    } finally {
-      await page.close();
-    }
-  } finally {
-    await context.close();
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`HTTP ${resp.status}: ${text.substring(0, 300)}`);
   }
+
+  const json = await resp.json();
+
+  if (json && json.error) {
+    throw new Error(`Shopee error ${json.error} (action_type=${json.action_type})`);
+  }
+
+  const list = ((json.data || {}).batchCustomLink) || [];
+  const mapping = {};
+  links.forEach((link, idx) => {
+    const item = list[idx];
+    if (item && item.failCode === 0 && item.shortLink) {
+      mapping[link] = { shortLink: item.shortLink, longLink: item.longLink, failCode: 0 };
+    } else {
+      mapping[link] = { error: true, failCode: item ? item.failCode : -1 };
+    }
+  });
+
+  return mapping;
 }
 
 // In-memory store for cookie synced from the Chrome extension
@@ -530,17 +372,14 @@ app.post('/api/convert', authenticateToken, async (req, res) => {
 
     const uniqueLinks = Array.from(new Set(links.filter(Boolean)));
 
-    // ── BOT/N8N AUTOMATION: use Playwright headless browser ──
-    // This loads a real Chromium page, injects cookies, lets Shopee's
-    // anti-bot JS compute tokens, then calls the API from inside the page.
     let mapping;
     try {
-      mapping = await convertWithPlaywright(uniqueLinks, subIds, cookie.trim());
-    } catch (pwErr) {
-      console.error('[Playwright] Convert failed:', pwErr.message);
+      mapping = await convertWithFetch(uniqueLinks, subIds, cookie.trim());
+    } catch (fetchErr) {
+      console.error('[Convert] Failed:', fetchErr.message);
       return res.status(502).json({
         ok: false,
-        error: 'Playwright: ' + (pwErr.message || String(pwErr))
+        error: fetchErr.message || String(fetchErr)
       });
     }
 
@@ -560,12 +399,10 @@ app.post('/api/convert', authenticateToken, async (req, res) => {
 });
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, browserReady, timestamp: new Date().toISOString() });
+  res.json({ ok: true, timestamp: new Date().toISOString() });
 });
 
 app.listen(PORT, async () => {
   console.log(`\n🚀 Shopee Affiliate Server đang chạy tại: http://localhost:${PORT}\n`);
   await initDefaultUser();
-  // Start headless browser in background
-  initBrowser();
 });

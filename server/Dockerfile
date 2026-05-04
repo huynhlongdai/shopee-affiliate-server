@@ -1,12 +1,9 @@
-FROM node:20-bookworm-slim
+FROM node:20-alpine
 
 WORKDIR /app
 
 COPY package*.json ./
 RUN npm ci --omit=dev
-
-# Install Chromium matching the installed playwright version + all system deps
-RUN npx playwright install --with-deps chromium
 
 COPY . .
 
