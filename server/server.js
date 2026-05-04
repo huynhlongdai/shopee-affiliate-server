@@ -30,17 +30,18 @@ const defaultUser = {
   mfaEnabled: false
 };
 
-// Initialize default admin user with password 'admin123'
+// Initialize default admin user — password from env or hardcoded default
 async function initDefaultUser() {
-  const hash = await bcrypt.hash('admin123', 10);
+  const password = process.env.APP_PASSWORD || 'a]7$bj[lymTN}SUp';
+  const hash = await bcrypt.hash(password, 10);
   const secret = speakeasy.generateSecret({ name: 'Shopee Affiliate Server', issuer: 'ShopeeAffiliate' });
   users.set('admin', {
     ...defaultUser,
     passwordHash: hash,
     mfaSecret: secret.base32,
-    mfaEnabled: false // disabled by default, user can enable
+    mfaEnabled: false
   });
-  console.log('[Auth] Default admin user created (username: admin, password: admin123)');
+  console.log('[Auth] Admin user ready.');
 }
 
 // JWT middleware
@@ -269,22 +270,22 @@ let syncedCookie = null; // { cookie, accountName, syncedAt }
 
 /* ── Auth endpoints ── */
 
-// Login with username/password (returns JWT if MFA disabled, otherwise requires MFA)
+// Login with password only (username always 'admin')
 app.post('/api/auth/login', async (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password) return res.status(400).json({ ok: false, error: 'Username and password required' });
-  const user = users.get(username);
+  const { password } = req.body;
+  if (!password) return res.status(400).json({ ok: false, error: 'Password required' });
+  const user = users.get('admin');
   if (!user) return res.status(401).json({ ok: false, error: 'Invalid credentials' });
   const match = await bcrypt.compare(password, user.passwordHash);
   if (!match) return res.status(401).json({ ok: false, error: 'Invalid credentials' });
 
   if (user.mfaEnabled) {
     // Return temp token requiring MFA
-    const tempToken = jwt.sign({ username, mfaRequired: true }, JWT_SECRET, { expiresIn: '5m' });
+    const tempToken = jwt.sign({ username: 'admin', mfaRequired: true }, JWT_SECRET, { expiresIn: '5m' });
     return res.json({ ok: true, mfaRequired: true, tempToken });
   }
 
-  const token = jwt.sign({ username }, JWT_SECRET, { expiresIn: '7d' });
+  const token = jwt.sign({ username: 'admin' }, JWT_SECRET, { expiresIn: '7d' });
   res.json({ ok: true, token, mfaRequired: false });
 });
 

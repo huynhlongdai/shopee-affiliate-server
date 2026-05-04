@@ -112,12 +112,8 @@
     <!-- Login form -->
     <div id="loginForm">
       <div class="form-group">
-        <label class="form-label" for="username">Username</label>
-        <input id="username" class="form-input" type="text" autocomplete="username" placeholder="admin">
-      </div>
-      <div class="form-group">
         <label class="form-label" for="password">Password</label>
-        <input id="password" class="form-input" type="password" autocomplete="current-password" placeholder="admin123">
+        <input id="password" class="form-input" type="password" autocomplete="current-password" placeholder="Nhập mật khẩu...">
       </div>
       <button id="loginBtn" class="login-btn">Đăng nhập</button>
       <div id="loginStatus" class="status" style="display:none"></div>
@@ -193,9 +189,8 @@
 
     // Login
     loginBtn.addEventListener('click', async () => {
-      const username = document.getElementById('username').value.trim();
       const password = document.getElementById('password').value;
-      if (!username || !password) { showStatus(document.getElementById('loginStatus'), 'Nhập username và password', true); return; }
+      if (!password) { showStatus(document.getElementById('loginStatus'), 'Nhập mật khẩu', true); return; }
 
       loginBtn.disabled = true;
       loginBtn.textContent = 'Đang đăng nhập...';
@@ -203,7 +198,7 @@
         const res = await fetch(API_BASE + '/api/auth/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password })
+          body: JSON.stringify({ password })
         });
         const data = await res.json();
         if (!data.ok) throw new Error(data.error || 'Login failed');
