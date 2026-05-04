@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <title>Shopee Affiliate Smart Link</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+
+    <!-- HEADER -->
+    <header class="app-header">
+      <div class="header-brand">
+        <div class="brand-logo">⚡</div>
+        <div class="brand-text">
+          <h1 class="brand-title">Shopee Affiliate Smart Link</h1>
+          <p class="brand-sub">
+            by <a href="https://github.com/diepvantien" target="_blank" rel="noopener">Diệp Văn Tiến</a>
+            &nbsp;·&nbsp;
+            <a href="https://me.momo.vn/OeIGiJsViJfDfntmiRId" target="_blank" rel="noopener">Donate Momo</a>
+            &nbsp;·&nbsp;
+            <a href="https://buymeacoffee.com/tixuno" target="_blank" rel="noopener">Buy me a coffee</a>
+          </p>
+        </div>
+      </div>
+      <div class="header-right">
+        <div class="account-meta">
+          <span id="accountStatusDot" class="status-dot status-unknown" title="Trạng thái phiên"></span>
+          <select id="accountSelect" class="select-account" title="Chọn tài khoản">
+            <option value="">(Chưa chọn tài khoản)</option>
+          </select>
+        </div>
+        <div id="extStatus" class="ext-status hidden" title="Extension Cookie Sync đang hoạt động — sẽ dùng extension proxy thay vì server">
+          <span class="ext-dot"></span>
+          <span class="ext-label">Extension</span>
+        </div>
+        <button id="syncLocalBtn" class="icon-btn" title="Sync cookie từ local máy tính">🔄</button>
+        <button id="logoutBtn" class="icon-btn" title="Đăng xuất">🚪</button>
+        <button id="settingsBtn" class="icon-btn" title="Cài đặt tài khoản">⚙️</button>
+      </div>
+    </header>
+
+    <!-- SETTINGS PANEL -->
+    <section class="settings-panel card" id="settingsPanel">
+      <div class="panel-header">
+        <h2 class="panel-title">Cài đặt tài khoản</h2>
+        <button id="closeSettingsBtn" class="ghost-btn">Đóng</button>
+      </div>
+
+      <div class="settings-grid">
+        <!-- Account name -->
+        <div class="form-group">
+          <label class="form-label" for="accountName">Tên tài khoản</label>
+          <input id="accountName" class="form-input" type="text" placeholder="VD: Affiliate team A" />
+        </div>
+
+        <!-- Cookie -->
+        <div class="form-group full-width">
+          <label class="form-label">
+            Cookie xác thực
+            <button id="cookieHelpBtn" class="help-badge" type="button">?</button>
+          </label>
+          <textarea id="cookieInput" class="form-textarea cookie-textarea" rows="3"
+            placeholder="Dán cookie string từ affiliate.shopee.vn vào đây...&#10;VD: SPC_F=abc; SPC_EC=xyz; csrftoken=...&#10;&#10;Hoặc dán thẳng JSON array [{&quot;name&quot;:...,&quot;value&quot;:...}] — sẽ tự convert."></textarea>
+          <div id="cookieHelp" class="help-box hidden">
+            <strong>⚠️ Phải lấy cookie từ affiliate.shopee.vn (không phải shopee.vn thường):</strong>
+            <ol>
+              <li>Mở <a href="https://affiliate.shopee.vn/tool/product-link" target="_blank">affiliate.shopee.vn/tool/product-link</a> và đăng nhập Affiliate.</li>
+              <li>Nhấn <kbd>F12</kbd> → chọn tab <strong>Console</strong>.</li>
+              <li>Gõ lệnh sau rồi Enter, copy toàn bộ kết quả:<br/><code>document.cookie</code></li>
+              <li>Dán vào ô Cookie bên trên rồi nhấn <strong>💾 Lưu tài khoản</strong>.</li>
+            </ol>
+            <strong>Cách lấy đầy đủ hơn (DevTools → Application):</strong>
+            <ol>
+              <li>Trên trang <code>affiliate.shopee.vn</code>, nhấn <kbd>F12</kbd> → tab <strong>Application</strong> → <strong>Cookies</strong> → chọn <code>https://affiliate.shopee.vn</code>.</li>
+              <li>Copy tất cả cookie <em>(đặc biệt: <code>SPC_EC</code>, <code>SPC_F</code>, <code>csrftoken</code>, <code>SPC_ST</code>)</em>.</li>
+            </ol>
+            <p><em>Hoặc: dùng chức năng <strong>Xuất JSON</strong> từ Chrome extension → <strong>Nhập JSON</strong> vào đây.</em></p>
+          </div>
+        </div>
+
+        <!-- SubIDs in settings -->
+        <div class="form-group full-width">
+          <div class="subid-header">
+            <label class="form-label">SubID <span class="muted">(tối đa 5)</span></label>
+            <button id="settingsAddSubIdBtn" class="ghost-btn small" type="button">+ Thêm</button>
+          </div>
+          <div id="settingsSubIdContainer" class="subid-container"></div>
+        </div>
+      </div>
+
+      <!-- Settings actions -->
+      <div class="settings-actions">
+        <button id="saveAccountBtn" class="primary-btn small">💾 Lưu tài khoản</button>
+        <button id="syncFromExtBtn" class="ghost-btn sync-ext-btn" title="Kéo cookie mới nhất đã gửi từ extension Cookie Sync">🔄 Đồng bộ từ Extension</button>
+        <button id="exportAccountBtn" class="ghost-btn">📤 Xuất JSON</button>
+        <button id="importAccountBtn" class="ghost-btn">📥 Nhập JSON</button>
+        <input id="importAccountFile" type="file" accept="application/json" hidden />
+        <button id="deleteAccountBtn" class="ghost-btn danger">🗑 Xóa tài khoản</button>
+      </div>
+
+      <div id="deleteConfirm" class="confirm-bar hidden">
+        <span>Bạn có chắc chắn muốn xóa tài khoản này?</span>
+        <div class="confirm-btns">
+          <button id="confirmDeleteBtn" class="ghost-btn danger small">Xóa</button>
+          <button id="cancelDeleteBtn" class="ghost-btn small">Hủy</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- MAIN CONTENT -->
+    <main class="app-main">
+      <!-- Left: Conversion -->
+      <div class="left-col">
+
+        <!-- Input -->
+        <section class="card">
+          <div class="card-header">
+            <h2 class="card-title">Link / Văn bản đầu vào</h2>
+            <button id="clearInputBtn" class="ghost-btn">Xóa</button>
+          </div>
+          <textarea id="inputText" class="form-textarea" rows="7"
+            placeholder="Dán link Shopee (1 hoặc nhiều) hoặc đoạn văn bản chứa link Shopee.vn vào đây..."></textarea>
+        </section>
+
+        <!-- SubIDs -->
+        <section class="card">
+          <div class="card-header">
+            <h2 class="card-title">SubID <span class="muted">(tối đa 5)</span></h2>
+            <button id="addSubIdBtn" class="ghost-btn small">+ Thêm</button>
+          </div>
+          <div id="subIdContainer" class="subid-container"></div>
+        </section>
+
+        <!-- Convert action -->
+        <section class="card action-card">
+          <button id="convertBtn" class="convert-btn">⚡ Convert link</button>
+          <div id="status" class="status-msg"></div>
+        </section>
+
+        <!-- Output -->
+        <section class="card">
+          <div class="card-header">
+            <h2 class="card-title">Kết quả</h2>
+            <button id="copyOutputBtn" class="ghost-btn">📋 Copy</button>
+          </div>
+          <textarea id="outputText" class="form-textarea output-area" rows="7" readonly
+            placeholder="Kết quả sẽ hiển thị tại đây..."></textarea>
+        </section>
+
+        <!-- Product Info -->
+        <section class="card" id="productCard" style="display:none">
+          <div class="card-header">
+            <h2 class="card-title">Thông tin sản phẩm</h2>
+          </div>
+          <div id="productList" class="product-list"></div>
+        </section>
+
+      </div>
+
+      <!-- Right: History -->
+      <aside class="right-col">
+        <section class="card history-card">
+          <div class="card-header">
+            <h2 class="card-title">Lịch sử chuyển đổi</h2>
+            <button id="clearHistoryBtn" class="ghost-btn">Xóa tất cả</button>
+          </div>
+          <div id="historyContainer" class="history-list">
+            <div class="empty-state">Chưa có lịch sử</div>
+          </div>
+        </section>
+      </aside>
+    </main>
+
+    <footer class="app-footer">
+      <span>© 2025 Shopee Affiliate Smart Link</span>
+      <span class="sep">·</span>
+      <a href="https://github.com/diepvantien/Shopee-Affiliate-Smart-Link" target="_blank" rel="noopener">GitHub</a>
+      <span class="sep">·</span>
+      <a href="https://www.facebook.com/tixu.no/" target="_blank" rel="noopener">Facebook</a>
+    </footer>
+
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

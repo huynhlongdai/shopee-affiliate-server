@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <title>Cookie Sync</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="logo">⚡</div>
+      <div class="header-text">
+        <div class="title">Cookie Sync</div>
+        <div class="subtitle">Shopee Affiliate Smart Link</div>
+      </div>
+    </header>
+
+    <div class="body">
+      <!-- Cookie status -->
+      <div id="cookieStatus" class="cookie-status hidden"></div>
+
+      <!-- Server URL -->
+      <div class="field">
+        <label class="label" for="serverUrl">URL Server</label>
+        <input id="serverUrl" class="input" type="text" value="http://localhost:3000" placeholder="http://localhost:3000" />
+      </div>
+
+      <!-- Account name -->
+      <div class="field">
+        <label class="label" for="accountName">Tên tài khoản <span class="optional">(tuỳ chọn)</span></label>
+        <input id="accountName" class="input" type="text" placeholder="VD: Affiliate chính" />
+      </div>
+
+      <!-- Main action -->
+      <button id="syncBtn" class="sync-btn">
+        <span id="syncBtnIcon">🔄</span>
+        <span id="syncBtnText">Lấy cookie & Gửi tới Server</span>
+      </button>
+
+      <!-- Status -->
+      <div id="status" class="status"></div>
+
+      <!-- Cookie preview (collapsed) -->
+      <details id="previewDetails" class="preview-details hidden">
+        <summary class="preview-summary">Xem cookie đã lấy</summary>
+        <textarea id="cookiePreview" class="preview-textarea" readonly></textarea>
+        <button id="copyBtn" class="copy-btn">📋 Copy cookie string</button>
+      </details>
+    </div>
+
+    <footer class="footer">
+      Mở <a href="https://affiliate.shopee.vn" target="_blank">affiliate.shopee.vn</a> và đăng nhập trước
+    </footer>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Đăng nhập - Shopee Affiliate Server</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .login-container {
+      max-width: 400px;
+      margin: 120px auto;
+      padding: 32px;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    }
+    .login-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 24px;
+      text-align: center;
+    }
+    .form-group {
+      margin-bottom: 16px;
+    }
+    .form-label {
+      display: block;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+    .form-input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 14px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .form-input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(238, 77, 45, 0.1);
+    }
+    .login-btn {
+      width: 100%;
+      padding: 12px;
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .login-btn:hover {
+      background: #e56047;
+    }
+    .login-btn:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    .status {
+      margin-top: 16px;
+      padding: 10px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      text-align: center;
+    }
+    .status.error {
+      background: #fee;
+      color: #c00;
+    }
+    .status.success {
+      background: #e8f5e8;
+      color: #0a0;
+    }
+    .mfa-section {
+      display: none;
+    }
+    .qr-code {
+      width: 200px;
+      height: 200px;
+      margin: 0 auto 16px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px;
+      background: #fff;
+    }
+    .qr-code img {
+      width: 100%;
+      height: 100%;
+    }
+    .secret-text {
+      font-family: monospace;
+      font-size: 13px;
+      background: #f5f5f5;
+      padding: 8px;
+      border-radius: 4px;
+      word-break: break-all;
+      margin-bottom: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <h1 class="login-title">🔐 Đăng nhập</h1>
+
+    <!-- Login form -->
+    <div id="loginForm">
+      <div class="form-group">
+        <label class="form-label" for="username">Username</label>
+        <input id="username" class="form-input" type="text" autocomplete="username" placeholder="admin">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="password">Password</label>
+        <input id="password" class="form-input" type="password" autocomplete="current-password" placeholder="admin123">
+      </div>
+      <button id="loginBtn" class="login-btn">Đăng nhập</button>
+      <div id="loginStatus" class="status" style="display:none"></div>
+    </div>
+
+    <!-- 2FA verification -->
+    <div id="mfaVerify" class="mfa-section">
+      <div class="form-group">
+        <label class="form-label" for="mfaCode">Mã 2FA</label>
+        <input id="mfaCode" class="form-input" type="text" placeholder="6 digits" maxlength="6" pattern="[0-9]{6}">
+      </div>
+      <button id="verifyMfaBtn" class="login-btn">Xác thực 2FA</button>
+      <div id="mfaStatus" class="status" style="display:none"></div>
+    </div>
+
+    <!-- 2FA setup -->
+    <div id="mfaSetup" class="mfa-section">
+      <p style="text-align:center; margin-bottom:16px; color:var(--muted);">Quét mã QR bằng ứng dụng 2FA (Google Authenticator, Authy)</p>
+      <div class="qr-code" id="qrCode"></div>
+      <div class="secret-text" id="secretText"></div>
+      <div class="form-group">
+        <label class="form-label" for="setupCode">Nhập mã 6 digits để xác nhận</label>
+        <input id="setupCode" class="form-input" type="text" placeholder="6 digits" maxlength="6" pattern="[0-9]{6}">
+      </div>
+      <button id="enableMfaBtn" class="login-btn">Bật 2FA</button>
+      <div id="setupStatus" class="status" style="display:none"></div>
+    </div>
+
+    <!-- 2FA disable -->
+    <div id="mfaDisable" class="mfa-section">
+      <div class="form-group">
+        <label class="form-label" for="disableCode">Nhập mã 2FA để tắt</label>
+        <input id="disableCode" class="form-input" type="text" placeholder="6 digits" maxlength="6" pattern="[0-9]{6}">
+      </div>
+      <button id="disableMfaBtn" class="login-btn">Tắt 2FA</button>
+      <div id="disableStatus" class="status" style="display:none"></div>
+    </div>
+
+    <div style="margin-top:24px; text-align:center;">
+      <button id="showSetupBtn" class="ghost-btn" style="font-size:13px;">Cài đặt 2FA</button>
+      <button id="showDisableBtn" class="ghost-btn" style="font-size:13px; display:none;">Tắt 2FA</button>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = window.location.origin;
+    let tempToken = null;
+    let authToken = localStorage.getItem('shopeeAffiliateToken');
+
+    // Check if already logged in
+    if (authToken) {
+      window.location.href = '/';
+    }
+
+    // DOM
+    const loginForm = document.getElementById('loginForm');
+    const mfaVerify = document.getElementById('mfaVerify');
+    const mfaSetup = document.getElementById('mfaSetup');
+    const mfaDisable = document.getElementById('mfaDisable');
+    const loginBtn = document.getElementById('loginBtn');
+    const verifyMfaBtn = document.getElementById('verifyMfaBtn');
+    const enableMfaBtn = document.getElementById('enableMfaBtn');
+    const disableMfaBtn = document.getElementById('disableMfaBtn');
+    const showSetupBtn = document.getElementById('showSetupBtn');
+    const showDisableBtn = document.getElementById('showDisableBtn');
+
+    function showStatus(el, msg, isError = false) {
+      el.textContent = msg;
+      el.style.display = 'block';
+      el.className = 'status ' + (isError ? 'error' : 'success');
+      setTimeout(() => { el.style.display = 'none'; }, 5000);
+    }
+
+    // Login
+    loginBtn.addEventListener('click', async () => {
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+      if (!username || !password) { showStatus(document.getElementById('loginStatus'), 'Nhập username và password', true); return; }
+
+      loginBtn.disabled = true;
+      loginBtn.textContent = 'Đang đăng nhập...';
+      try {
+        const res = await fetch(API_BASE + '/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || 'Login failed');
+        if (data.mfaRequired) {
+          tempToken = data.tempToken;
+          loginForm.style.display = 'none';
+          mfaVerify.style.display = 'block';
+        } else {
+          localStorage.setItem('shopeeAffiliateToken', data.token);
+          window.location.href = '/';
+        }
+      } catch (e) {
+        showStatus(document.getElementById('loginStatus'), e.message, true);
+      } finally {
+        loginBtn.disabled = false;
+        loginBtn.textContent = 'Đăng nhập';
+      }
+    });
+
+    // Verify MFA
+    verifyMfaBtn.addEventListener('click', async () => {
+      const code = document.getElementById('mfaCode').value.trim();
+      if (!code || !/^\d{6}$/.test(code)) { showStatus(document.getElementById('mfaStatus'), 'Nhập mã 6 digits', true); return; }
+
+      verifyMfaBtn.disabled = true;
+      verifyMfaBtn.textContent = 'Đang xác thực...';
+      try {
+        const res = await fetch(API_BASE + '/api/auth/verify-mfa', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tempToken, code })
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || 'MFA failed');
+        localStorage.setItem('shopeeAffiliateToken', data.token);
+        window.location.href = '/';
+      } catch (e) {
+        showStatus(document.getElementById('mfaStatus'), e.message, true);
+      } finally {
+        verifyMfaBtn.disabled = false;
+        verifyMfaBtn.textContent = 'Xác thực 2FA';
+      }
+    });
+
+    // Setup 2FA
+    showSetupBtn.addEventListener('click', async () => {
+      if (!authToken) {
+        showStatus(document.getElementById('loginStatus'), 'Vui lòng đăng nhập trước', true);
+        return;
+      }
+      try {
+        const res = await fetch(API_BASE + '/api/auth/2fa/setup', {
+          headers: { 'Authorization': 'Bearer ' + authToken }
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || 'Failed to setup 2FA');
+        document.getElementById('qrCode').innerHTML = `<img src="${data.qrCode}" alt="QR">`;
+        document.getElementById('secretText').textContent = 'Secret: ' + data.secret;
+        loginForm.style.display = 'none';
+        mfaSetup.style.display = 'block';
+      } catch (e) {
+        showStatus(document.getElementById('loginStatus'), e.message, true);
+      }
+    });
+
+    // Enable 2FA
+    enableMfaBtn.addEventListener('click', async () => {
+      const secret = document.getElementById('secretText').textContent.replace('Secret: ', '');
+      const code = document.getElementById('setupCode').value.trim();
+      if (!code || !/^\d{6}$/.test(code)) { showStatus(document.getElementById('setupStatus'), 'Nhập mã 6 digits', true); return; }
+      try {
+        const res = await fetch(API_BASE + '/api/auth/2fa/enable', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+          body: JSON.stringify({ secret, code })
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || 'Failed to enable 2FA');
+        showStatus(document.getElementById('setupStatus'), '2FA đã bật! Đăng nhập lại để test.', false);
+        setTimeout(() => { localStorage.removeItem('shopeeAffiliateToken'); window.location.reload(); }, 2000);
+      } catch (e) {
+        showStatus(document.getElementById('setupStatus'), e.message, true);
+      }
+    });
+
+    // Show disable 2FA
+    showDisableBtn.addEventListener('click', () => {
+      loginForm.style.display = 'none';
+      mfaDisable.style.display = 'block';
+    });
+
+    // Disable 2FA
+    disableMfaBtn.addEventListener('click', async () => {
+      const code = document.getElementById('disableCode').value.trim();
+      if (!code || !/^\d{6}$/.test(code)) { showStatus(document.getElementById('disableStatus'), 'Nhập mã 6 digits', true); return; }
+      try {
+        const res = await fetch(API_BASE + '/api/auth/2fa/disable', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+          body: JSON.stringify({ code })
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || 'Failed to disable 2FA');
+        showStatus(document.getElementById('disableStatus'), '2FA đã tắt!', false);
+        setTimeout(() => { localStorage.removeItem('shopeeAffiliateToken'); window.location.reload(); }, 2000);
+      } catch (e) {
+        showStatus(document.getElementById('disableStatus'), e.message, true);
+      }
+    });
+  </script>
+</body>
+</html>
