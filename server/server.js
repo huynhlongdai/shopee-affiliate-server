@@ -19,6 +19,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.static(join(__dirname, 'public')));
 
 const GQL_ENDPOINT = 'https://affiliate.shopee.vn/api/v3/gql?q=batchCustomLink';
+const PLAYWRIGHT_PROXY = process.env.PLAYWRIGHT_PROXY || null;
 const JWT_SECRET = process.env.JWT_SECRET || 'shopee-affiliate-secret-2025';
 
 // In-memory user store (in production, use DB)
@@ -64,6 +65,8 @@ let browserReady = false;
 async function initBrowser() {
   if (browser) return;
   console.log('[Playwright] Đang khởi động headless Chromium...');
+  if (PLAYWRIGHT_PROXY) console.log('[Playwright] Proxy:', PLAYWRIGHT_PROXY);
+  else console.warn('[Playwright] Không có proxy — có thể bị Shopee chặn nếu chạy trên datacenter IP.');
   try {
     browser = await chromium.launch({
       headless: true,
@@ -166,9 +169,11 @@ async function getAffiliatePage(cookieString) {
   }
 
   console.log('[Playwright] Tạo browser context mới, navigate đến dashboard...');
-  const context = await browser.newContext({
+  const contextOptions = {
     userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
-  });
+  };
+  if (PLAYWRIGHT_PROXY) contextOptions.proxy = { server: PLAYWRIGHT_PROXY };
+  const context = await browser.newContext(contextOptions);
   const cookies = parseCookieString(cookieString, 'https://affiliate.shopee.vn');
   if (cookies.length) await context.addCookies(cookies);
 
