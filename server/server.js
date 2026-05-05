@@ -137,6 +137,61 @@ async function fetchProductInfoParallel(links) {
   return map;
 }
 
+// Cached browser page — reused across requests to avoid re-navigation
+let cachedPage = null;
+let cachedContext = null;
+let cachedCookieStr = null;
+let cachedAt = 0;
+const PAGE_TTL_MS = 25 * 60 * 1000; // 25 minutes
+
+async function getAffiliatePage(cookieString) {
+  const now = Date.now();
+  const isAlive = cachedPage && !cachedPage.isClosed();
+  const isFresh = (now - cachedAt) < PAGE_TTL_MS;
+  const sameCookie = cachedCookieStr === cookieString;
+
+  if (isAlive && isFresh && sameCookie) {
+    const url = cachedPage.url();
+    if (url.includes('affiliate.shopee.vn') && !url.includes('/login')) {
+      console.log('[Playwright] Tái dùng page đã có — bỏ qua navigation.');
+      return cachedPage;
+    }
+  }
+
+  // Close stale context/page
+  if (cachedContext) {
+    try { await cachedContext.close(); } catch {}
+    cachedContext = null;
+    cachedPage = null;
+  }
+
+  console.log('[Playwright] Tạo browser context mới, navigate đến dashboard...');
+  const context = await browser.newContext({
+    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+  });
+  const cookies = parseCookieString(cookieString, 'https://affiliate.shopee.vn');
+  if (cookies.length) await context.addCookies(cookies);
+
+  const page = await context.newPage();
+  await page.goto('https://affiliate.shopee.vn/dashboard', {
+    waitUntil: 'networkidle',
+    timeout: 35000
+  });
+
+  const url = page.url();
+  console.log('[Playwright] URL:', url);
+  if (url.includes('/login') || url.includes('accounts.shopee')) {
+    await context.close();
+    throw new Error('Cookie hết hạn hoặc không hợp lệ — bị redirect sang trang đăng nhập Shopee.');
+  }
+
+  cachedContext = context;
+  cachedPage = page;
+  cachedCookieStr = cookieString;
+  cachedAt = Date.now();
+  return page;
+}
+
 async function convertWithPlaywright(links, subIds, cookieString) {
   if (!browserReady || !browser) {
     console.log('[Playwright] Browser chưa sẵn sàng, thử khởi động lại...');
@@ -146,98 +201,83 @@ async function convertWithPlaywright(links, subIds, cookieString) {
     }
   }
 
-  const csrfToken = extractCsrfToken(cookieString);
-
   const cleanedSubIds = (subIds || [])
     .map(s => (s || '').trim())
     .filter(Boolean)
     .slice(0, 5);
 
-  const query = `query batchGetCustomLink($linkParams: [CustomLinkParam!], $sourceCaller: SourceCaller){
-    batchCustomLink(linkParams: $linkParams, sourceCaller: $sourceCaller){
-      shortLink
-      longLink
-      failCode
-    }
-  }`;
+  const page = await getAffiliatePage(cookieString);
 
-  const linkParams = links.map(link => {
-    const advancedLinkParams = {};
-    cleanedSubIds.forEach((value, index) => {
-      advancedLinkParams['subId' + (index + 1)] = value;
-    });
-    return { originalLink: link, advancedLinkParams };
-  });
-
-  const gqlBody = JSON.stringify({
-    operationName: 'batchGetCustomLink',
-    query,
-    variables: { linkParams, sourceCaller: 'CUSTOM_LINK_CALLER' }
-  });
-
-  const context = await browser.newContext({
-    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
-  });
-
+  console.log(`[Playwright] Gọi Shopee GQL qua page.evaluate (${links.length} link)...`);
+  let result;
   try {
-    const cookies = parseCookieString(cookieString, 'https://affiliate.shopee.vn');
-    if (cookies.length) await context.addCookies(cookies);
+    result = await page.evaluate(async ({ linksArg, subIdsArg, endpoint }) => {
+      const cleanedSubs = (subIdsArg || []).map(s => (s || '').trim()).filter(Boolean).slice(0, 5);
 
-    // Navigate to affiliate dashboard to establish session & let Shopee set session cookies
-    const page = await context.newPage();
-    try {
-      await page.goto('https://affiliate.shopee.vn/dashboard', {
-        waitUntil: 'domcontentloaded',
-        timeout: 30000
+      const csrfToken = document.cookie.split(';').map(c => c.trim())
+        .find(c => c.startsWith('csrftoken='))?.split('=')[1] || '';
+
+      const query = `query batchGetCustomLink($linkParams: [CustomLinkParam!], $sourceCaller: SourceCaller){
+        batchCustomLink(linkParams: $linkParams, sourceCaller: $sourceCaller){
+          shortLink
+          longLink
+          failCode
+        }
+      }`;
+
+      const linkParams = linksArg.map(link => {
+        const advancedLinkParams = {};
+        cleanedSubs.forEach((v, i) => { advancedLinkParams['subId' + (i + 1)] = v; });
+        return { originalLink: link, advancedLinkParams };
       });
-      const currentUrl = page.url();
-      console.log('[Playwright] URL sau goto:', currentUrl);
-      if (currentUrl.includes('/login') || currentUrl.includes('accounts.shopee')) {
-        throw new Error('Cookie hết hạn hoặc không hợp lệ — bị redirect sang trang đăng nhập Shopee.');
-      }
-      await page.waitForTimeout(2000);
-    } finally {
-      await page.close();
-    }
 
-    // Use context.request (Chrome TLS fingerprint, context cookies, no page needed)
-    console.log(`[Playwright] Gọi Shopee GQL qua context.request (${links.length} link)...`);
-    const resp = await context.request.post(GQL_ENDPOINT, {
-      headers: {
-        'Content-Type': 'application/json',
-        'x-csrftoken': csrfToken,
-        'x-shopee-language': 'vi',
-        'x-affiliate-source-type': '1',
-        'Referer': 'https://affiliate.shopee.vn/dashboard',
-        'Origin': 'https://affiliate.shopee.vn'
-      },
-      data: gqlBody
-    });
+      const resp = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-csrftoken': csrfToken,
+          'x-shopee-language': 'vi',
+          'x-affiliate-source-type': '1',
+          'Referer': 'https://affiliate.shopee.vn/dashboard',
+          'Origin': 'https://affiliate.shopee.vn'
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          operationName: 'batchGetCustomLink',
+          query,
+          variables: { linkParams, sourceCaller: 'CUSTOM_LINK_CALLER' }
+        })
+      });
 
-    const json = await resp.json();
-
-    if (json && json.error) {
-      throw new Error(`Shopee error ${json.error} (action_type=${json.action_type})`);
-    }
-    if (!resp.ok()) {
-      throw new Error(`HTTP ${resp.status()}: Shopee trả về lỗi không xác định.`);
-    }
-
-    const list = ((json.data || {}).batchCustomLink) || [];
-    const mapping = {};
-    links.forEach((link, idx) => {
-      const item = list[idx];
-      if (item && item.failCode === 0 && item.shortLink) {
-        mapping[link] = { shortLink: item.shortLink, longLink: item.longLink, failCode: 0 };
-      } else {
-        mapping[link] = { error: true, failCode: item ? item.failCode : -1 };
-      }
-    });
-
-    return mapping;
-  } finally {
-    await context.close();
+      const json = await resp.json();
+      return { ok: resp.ok, status: resp.status, json };
+    }, { linksArg: links, subIdsArg: subIds, endpoint: GQL_ENDPOINT });
+  } catch (evalErr) {
+    // Invalidate cache on context errors so next call gets a fresh page
+    cachedPage = null; cachedContext = null; cachedCookieStr = null;
+    throw evalErr;
   }
+
+  const { json } = result;
+
+  if (json && json.error) {
+    if (json.error === 90309999) {
+      // Invalidate cache — session may be stale
+      cachedPage = null; cachedContext = null; cachedCookieStr = null;
+    }
+    throw new Error(`Shopee error ${json.error} (action_type=${json.action_type})`);
+  }
+
+  const list = ((json.data || {}).batchCustomLink) || [];
+  const mapping = {};
+  links.forEach((link, idx) => {
+    const item = list[idx];
+    mapping[link] = (item && item.failCode === 0 && item.shortLink)
+      ? { shortLink: item.shortLink, longLink: item.longLink, failCode: 0 }
+      : { error: true, failCode: item ? item.failCode : -1 };
+  });
+
+  return mapping;
 }
 
 // In-memory store for cookie synced from the Chrome extension
